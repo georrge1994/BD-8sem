@@ -5,63 +5,36 @@
  */
 
 package database;
-import java.awt.Dimension;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.io.*;
-import java.sql.*;
-import java.util.Vector;
+
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.JViewport;
-import javax.swing.table.*;
+
 /**
  *
  * @author Georgiy
  */
 public class main_interface extends javax.swing.JFrame {
-
-    // JDBC variables for opening and managing connection
-    private static Connection con;
-    private static Statement stmt;
-    private static DatabaseMetaData dbmd;
-    private static int countTables = 1;
-    private static int countProcedure = 1;
-    private DefaultTableModel mod;
+    Query queryChess = new Query();                                             // class with main methods
+    threads threads = new threads();
     private boolean show_button = false;
-    private  Vector<String> external_keys_vec;
-    private String header_slave_table;
-    // for save and change string
-    private boolean addNewString = false;
-    private boolean deleteString = false;
-    private int count_header = 0;
-    private int new_string = 0;
-    private int old_string = 0;
-    private Vector<String> old_data; 
-    private Vector<String> new_data; 
-    private Vector<String> headerVect;
-    private int Limit = 5000;
-    private int start_lim, end_lim;
-    
+
     /**
      * Creates new form main_interface
      */
     public main_interface() {
         initComponents();
+        initQuery();
+        
         // in the begining all functions to turned off, because we are not connected to BD
-        jButton6.setEnabled(false);
-        jButton7.setEnabled(false);
         jTable1.setEnabled(false);
         jComboBox1.setEnabled(false);
         jTextField2.setEnabled(false);
         jButton2.setEnabled(false);
+        jButton3.setEnabled(false);
         jButton4.setEnabled(false);
         jButton5.setEnabled(false);
-        jButton3.setEnabled(false);
+        jButton6.setEnabled(false);
+        jButton7.setEnabled(false);
         jButton8.setEnabled(false); 
     }
 
@@ -110,11 +83,6 @@ public class main_interface extends javax.swing.JFrame {
         jLabel3.setText("DataBase");
 
         jTextField3.setText("chessclub_t");
-        jTextField3.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                jTextField3ActionPerformed(evt);
-            }
-        });
 
         jButton1.setText("connect");
         jButton1.addActionListener(new java.awt.event.ActionListener() {
@@ -330,670 +298,201 @@ public class main_interface extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
-
-    private void jTextField3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jTextField3ActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_jTextField3ActionPerformed
    
     /* connecting with BD */
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
-        try {
-             // opening database connection to MySQL server
-             con = DriverManager.getConnection("jdbc:mysql://localhost:3306/"+jTextField3.getText(), 
-                    jTextField1.getText(), jPasswordField1.getText());
-             stmt = con.createStatement();
-             dbmd = con.getMetaData();
-
-             // get list of the tables
-             ResultSet rs2 = dbmd.getTables(null, null, null, null);
-             while (rs2.next()) {
-                     jComboBox1.addItem(rs2.getString(3));
-                     countTables++;
-             }
-
-             // to turn on functions
-             jTable1.setEnabled(true);
-             jComboBox1.setEnabled(true);
-             jButton5.setEnabled(true);
-             jButton1.setEnabled(false);
-
-        } catch (SQLException ex) {
-             JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-             JOptionPane.showMessageDialog(frame,"Error 004: "+ex);
-        }
+            
+            queryChess.setNameDB(jTextField3.getText());                        // set the database name
+            queryChess.setUser(jTextField1.getText());                          // set user name
+            queryChess.setPass(jPasswordField1.getText());                      // set passsword
+            
+            if(threads.connectDataBase()){                                   // connecting
+                
+                // to turn on functions
+                jTable1.setEnabled(true);
+                jComboBox1.setEnabled(true);
+                jButton5.setEnabled(true);
+                jButton1.setEnabled(false);
+            }
     }//GEN-LAST:event_jButton1ActionPerformed
 
-// show
+    /* show selected table*/
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
-        // to turn update buttons
-        show_button = true;
-        jButton4.setEnabled(true);
-        jButton6.setEnabled(true);
-        jButton7.setEnabled(true);   
-        jTextField2.setEnabled(true);
-        jButton3.setEnabled(true);
-        jButton8.setEnabled(false); 
-        headerVect = new Vector<>();
-        count_header = 0;
-        old_string=0;
         try {
-            ResultSet rs4 = dbmd.getColumns(null, null, (String) jComboBox1.getSelectedItem(), null);             // get header columns
-            while (rs4.next()) {
-                headerVect.add(rs4.getString(4));                                // save header
-                count_header++;                                                  // header count
+            queryChess.zeroingStartLimit();                                         // zeroing start value of showing space
+            queryChess.setNameTable((String) jComboBox1.getSelectedItem());         // set selected name table
+            if(threads.showTable()){
+                // to turn on/off some buttons
+                jButton3.setEnabled(true);
+                jButton4.setEnabled(true);
+                jButton6.setEnabled(true);
+                jButton7.setEnabled(true);
+                jButton8.setEnabled(false);
+                jTextField2.setEnabled(true);
+                show_button = true;                                                 // showing is successfull
             }
-        } catch (SQLException sqlEx) {
-            sqlEx.printStackTrace();
+        } catch (InterruptedException ex) {
+            Logger.getLogger(main_interface.class.getName()).log(Level.SEVERE, null, ex);
         }
-
-        mod = new DefaultTableModel(headerVect, 0);                             // set header
-        jTable1.setModel(mod);                                                  // update table
-
-        try {
-            String query = "select * from " + jComboBox1.getSelectedItem() + " LIMIT 0,"+Limit+";", name;
-            ResultSet rs = stmt.executeQuery(query);
-            
-            while (rs.next()) {                                                 // get data
-                Vector<String> newRow = new Vector<>();
-                for(int i = 1; i< count_header+1; i++){
-                    newRow.add(rs.getString(i));                                // create string
-                }
-                mod.addRow(newRow);                                             // add string
-            }
-            
-            // start init for table 
-            jTable1 .getSelectionModel().setSelectionInterval(0, 0);            // choose fisrt string
-            old_data = new Vector();
-            for(int i=0;i<count_header;i++){                                    // save context for first string
-               old_data.add((String) jTable1.getValueAt(old_string,i)); 
-            }
-            start_lim = Limit;
-        } catch (SQLException ex) {
-            JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-            JOptionPane.showMessageDialog(frame,"Error 003: "+ex);
-           // Logger.getLogger(main_interface.class.getName()).log(Level.SEVERE, null, ex);
-        }
-      
     }//GEN-LAST:event_jButton2ActionPerformed
 
-/*  Проверка корректности выбора таблицы*/
+    /* check name of the table */
     private void jComboBox1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jComboBox1ActionPerformed
-        if(!jComboBox1.getSelectedItem().equals("choose table")){
+        if(!jComboBox1.getSelectedItem().equals("choose table")){           
             jButton2.setEnabled(true);
-            jTextField2.setEnabled(true);
             jButton3.setEnabled(true);
+            jTextField2.setEnabled(true);
         }else{ 
-            jTextField2.setEnabled(false);
             jButton3.setEnabled(false);
             jButton2.setEnabled(false);
             jButton4.setEnabled(false);
             jButton6.setEnabled(false);
             jButton7.setEnabled(false);  
-            mod = new DefaultTableModel(0, 0);
-            jTable1.setModel(mod);
+            jTextField2.setEnabled(false);
         }
     }//GEN-LAST:event_jComboBox1ActionPerformed
 
-/* disconnect */
+    /* disconnect */
     private void jButton5ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton5ActionPerformed
-         try {
-                if (stmt != null) {                         // check obkect BD
-                     stmt.close();
-                }
-
-                // off all funcrions
-                jButton6.setEnabled(false);  
-                jButton7.setEnabled(false);
-                jTable1.setEnabled(false);
-                jComboBox1.setEnabled(false);
-                jTextField2.setEnabled(false);
-                jButton2.setEnabled(false);
-                jButton4.setEnabled(false);
-                jButton3.setEnabled(false);
-                jButton5.setEnabled(false);
-                jButton1.setEnabled(true);
-                jButton8.setEnabled(false); 
-                for(int i = 1; i<countTables;i++)           // delete list tables
-                    jComboBox1.removeItemAt(1);
-                // zeroing counter
-                countTables = 1;
-                countProcedure = 1;
-            
-                mod = new DefaultTableModel(0, 0);
-                jTable1.setModel(mod);
-           } catch (SQLException ex) {
-                JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                JOptionPane.showMessageDialog(frame,"Error 002: "+ex);
-           }
+        if(threads.disconnect()){
+            // to turn off all functions (except connecting)
+            jButton1.setEnabled(true);
+            jButton2.setEnabled(false);
+            jButton4.setEnabled(false);
+            jButton3.setEnabled(false);
+            jButton5.setEnabled(false);
+            jButton6.setEnabled(false);  
+            jButton7.setEnabled(false);
+            jButton8.setEnabled(false); 
+            jTable1.setEnabled(false);
+            jComboBox1.setEnabled(false);
+            jTextField2.setEnabled(false);
+        }
     }//GEN-LAST:event_jButton5ActionPerformed
 
-// add new string (button)
+    /* add new row in table */
     private void jButton6ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton6ActionPerformed
         if(show_button){
-            Vector<String> newRow = new Vector<>();
-            mod.addRow(newRow);
-            jTable1.setModel(mod);
-            for(int i=0;i<count_header;i++){
-                jTable1.setValueAt("null", jTable1.getRowCount()-1, i);
-            }
-            addNewString = true;
+            threads.addRows();                                                // add new rows in table
             jButton6.setEnabled(false);
         }
     }//GEN-LAST:event_jButton6ActionPerformed
  
-// update or add rows (mouse click)
+    /* update or add rows due of mouse click */
     private void jTable1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_jTable1MouseClicked
-            new_string = jTable1.getSelectedRow();
-            if(new_string != old_string){
-                new_data = new Vector();
-                for(int i=0;i<count_header;i++){
-                   new_data.add((String) jTable1.getValueAt(old_string,i)); 
-                }
-                boolean go_request = false;
-                for(int i = 0; i<count_header;i++ ){
-                    if(!new_data.get(i).equals(old_data.get(i))){
-                        go_request=true;
-                        break;
-                    }
-                }
-                if(go_request){
-                    try {
-                        if(addNewString && old_string == jTable1.getRowCount()-1 ){
-                            String query = "INSERT INTO `" + jComboBox1.getSelectedItem() + "` ( ", name;
-                            for(int i =0; i< count_header; i++){
-                                query = query + (String)headerVect.get(i);
-                                if(i+1<count_header)
-                                     query = query +", ";
-                            }
-                            query = query +") VALUES ( ";
-                            for(int i =0; i< count_header; i++){
-                                query = query + "'"+(String)new_data.get(i)+"'";
-                                if(i+1<count_header)
-                                     query = query +" , ";
-                            }
-                            query = query +");";
-                            boolean rs = stmt.execute(query);
-                            addNewString = false;
-                            jButton6.setEnabled(true);
-                            System.out.println(rs);
-                        }else{
-                            // Generate request
-                            String query = "update `" + jComboBox1.getSelectedItem() + "` set ", name;
-                            for(int i =0; i< count_header; i++){
-                                query = query + (String)headerVect.get(i)+" = '"+(String)new_data.get(i)+"'";
-                                if(i+1<count_header)
-                                     query = query +", ";
-                            }
-                            query = query +" where ";
-                            for(int i =0; i< count_header; i++){
-                                query = query + (String)headerVect.get(i)+" = '"+(String)old_data.get(i)+"'";
-                                if(i+1<count_header)
-                                     query = query +" and ";
-                            }
-                            query = query +";";
-                            int rs = stmt.executeUpdate(query);
-                            System.out.println("rs="+rs);
-                        }
-                    } catch (SQLException ex) {
-                        JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                        JOptionPane.showMessageDialog(frame,"Error 001: "+ex);
-                        // return correct values
-                        for(int i=0;i<count_header;i++){
-                            jTable1.setValueAt(old_data.get(i), old_string, i);
-                        }
-                    }
-                }
-                old_string = new_string;
-                old_data = new Vector();
-                for(int i=0;i<count_header;i++){
-                   old_data.add((String) jTable1.getValueAt(old_string,i)); 
-                }
-            }      
+        queryChess.setSelectedRow();
+        queryChess.setNameTable((String) jComboBox1.getSelectedItem());
+        threads.updateRow();
+        jButton6.setEnabled(true);
+        /*if(threads.updateRow())
+            jButton6.setEnabled(true);*/
     }//GEN-LAST:event_jTable1MouseClicked
 
-// save button
+    /* save button */
     private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton4ActionPerformed
         if(show_button){
-            new_string = jTable1.getSelectedRow();
-            new_data = new Vector();
-            for(int i=0;i<count_header;i++){
-               new_data.add((String) jTable1.getValueAt(old_string,i)); 
-            }
-            boolean go_request = false;
-            for(int i = 0; i<count_header;i++ ){
-                if(!new_data.get(i).equals(old_data.get(i))){
-                    go_request=true;
-                    break;
-                }
-            }
-            if(go_request){
-                try {
-                    // Generate request
-                    //update `book` set cost = '250' where id = '2';*/
-                    String query = "update `" + jComboBox1.getSelectedItem() + "` set ", name;
-                    for(int i =0; i< count_header; i++){
-                        query = query + (String)headerVect.get(i)+" = '"+(String)new_data.get(i)+"'";
-                        if(i+1<count_header)
-                             query = query +", ";
-                    }
-                    query = query +" where ";
-                    for(int i =0; i< count_header; i++){
-                        query = query + (String)headerVect.get(i)+" = '"+(String)old_data.get(i)+"'";
-                        if(i+1<count_header)
-                             query = query +" and ";
-                    }
-                    query = query +";";
-                    int rs = stmt.executeUpdate(query);
-                } catch (SQLException ex) {
-                    //Logger.getLogger(main_interface.class.getName()).log(Level.SEVERE, null, ex);
-                    JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                    JOptionPane.showMessageDialog(frame,"Error 005: "+ex);
-                    // return correct values
-                    for(int i=0;i<count_header;i++){
-                        jTable1.setValueAt(old_data.get(i), old_string, i);
-                    }
-                }
-            }
-            old_string = new_string;
-
-            old_data = new Vector();
-            for(int i=0;i<count_header;i++){
-               old_data.add((String) jTable1.getValueAt(old_string,i)); 
-            }
+            queryChess.setSelectedRow();
+            queryChess.setNameTable((String) jComboBox1.getSelectedItem());
+            threads.updateRow();
+            jButton6.setEnabled(true);
+            /* if(threads.updateRow())
+                jButton6.setEnabled(true);*/
         }
     }//GEN-LAST:event_jButton4ActionPerformed
 
-// delete  button
+    /* delete  button */
     private void jButton7ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton7ActionPerformed
         if(show_button){
-            try {
-                int index_deleted = jTable1.getSelectedRow();
-                String query = "DELETE FROM `" + jComboBox1.getSelectedItem() + "` WHERE ", name;
-                for(int i =0; i< count_header; i++){
-                    query = query + (String)headerVect.get(i)+" = '"+(String) jTable1.getValueAt(index_deleted,i)+"'";
-                    if(i+1<count_header)
-                         query = query +" and ";
-                }
-                query = query +";";
-                boolean rs = stmt.execute(query);
-                mod.removeRow(index_deleted);
-            } catch (SQLException ex) {
-                //Logger.getLogger(main_interface.class.getName()).log(Level.SEVERE, null, ex);
-                JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                JOptionPane.showMessageDialog(frame,"Error 007: "+ex);
-            }
+            threads.deletedRow();
         }
     }//GEN-LAST:event_jButton7ActionPerformed
 
-// update and add new records (button)
+    /* update and add new records (due of press button) */
     private void jTable1KeyReleased(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_jTable1KeyReleased
-            new_string = jTable1.getSelectedRow();
-            new_data = new Vector();
-            for(int i=0;i<count_header;i++){
-               new_data.add((String) jTable1.getValueAt(old_string,i)); 
-            }
-            boolean go_request = false;
-            for(int i = 0; i<count_header;i++ ){
-                if(!new_data.get(i).equals(old_data.get(i))){
-                    go_request=true;
-                    break;
-                }
-            }
-            if(go_request){
-                try {
-                    if(addNewString && old_string == jTable1.getRowCount()-1 ){
-                        String query = "INSERT INTO `" + jComboBox1.getSelectedItem() + "` ( ", name;
-                        for(int i =0; i< count_header; i++){
-                            query = query + (String)headerVect.get(i);
-                            if(i+1<count_header)
-                                 query = query +", ";
-                        }
-                        query = query +") VALUES ( ";
-                        for(int i =0; i< count_header; i++){
-                            query = query + "'"+(String)new_data.get(i)+"'";
-                            if(i+1<count_header)
-                                 query = query +" , ";
-                        }
-                        query = query +");";
-                        boolean rs = stmt.execute(query);
-                        addNewString = false;
-                        jButton6.setEnabled(true);
-                        System.out.println(rs);
-                    }else{
-                        String query = "update `" + jComboBox1.getSelectedItem() + "` set ", name;
-                        for(int i =0; i< count_header; i++){
-                            query = query + (String)headerVect.get(i)+" = '"+(String)new_data.get(i)+"'";
-                            if(i+1<count_header)
-                                 query = query +", ";
-                        }
-                        query = query +" where ";
-                        for(int i =0; i< count_header; i++){
-                            query = query + (String)headerVect.get(i)+" = '"+(String)old_data.get(i)+"'";
-                            if(i+1<count_header)
-                                 query = query +" and ";
-                        }
-                        query = query +";";
-                        int rs = stmt.executeUpdate(query);
-                        System.out.println("rs="+rs);
-                    }
-                } catch (SQLException ex) {
-                    JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                    JOptionPane.showMessageDialog(frame,"Error 001: "+ex);
-                    // return correct values
-                    for(int i=0;i<count_header;i++){
-                        jTable1.setValueAt(old_data.get(i), old_string, i);
-                    }
-
-                }
-            }
-            old_string = new_string;
-            old_data = new Vector();
-            for(int i=0;i<count_header;i++){
-               old_data.add((String) jTable1.getValueAt(old_string,i)); 
-            }       
+        queryChess.setSelectedRow();
+        queryChess.setNameTable((String) jComboBox1.getSelectedItem());
+        threads.updateRow();
+        jButton6.setEnabled(true);
+        /*if(threads.updateRow())
+            jButton6.setEnabled(true);    */
     }//GEN-LAST:event_jTable1KeyReleased
 
-// reload new lines in table (wheel)
+    /* reload new lines in table (due of wheel scroll) */
     private void jTable1MouseWheelMoved(java.awt.event.MouseWheelEvent evt) {//GEN-FIRST:event_jTable1MouseWheelMoved
+        int reloadRows = jScrollPane3.getViewport().getViewPosition().y;
         if(show_button){
-            int position = jScrollPane3.getViewport().getViewPosition().y;
-            int max_position = jTable1.getHeight() - 403; // minus border
-            if(max_position == position){
-                System.out.println("yes");
-                try {
-                    JViewport v = jScrollPane3.getViewport();
-                    jScrollPane3.setViewport(v);
-
-                    String query = "select * from " + jComboBox1.getSelectedItem() 
-                            + " LIMIT "+start_lim+","+Limit+";", name;
-                    ResultSet rs = stmt.executeQuery(query);
-
-                    while (rs.next()) {                                                 // get data
-                        Vector<String> newRow = new Vector<>();
-                        for(int i = 1; i< count_header+1; i++){
-                            newRow.add(rs.getString(i));                                // create string
-                        }
-                        mod.addRow(newRow);                                             // add string
-                    }
-
-                    // start init for table 
-                    jTable1 .getSelectionModel().setSelectionInterval(0, 0);            // choose fisrt string
-                    old_data = new Vector();
-                    for(int i=0;i<count_header;i++){                                    // save context for first string
-                       old_data.add((String) jTable1.getValueAt(old_string,i)); 
-                    }
-                    start_lim = start_lim + Limit;
-                } catch (SQLException ex) {
-                    JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                    JOptionPane.showMessageDialog(frame,"Error 009: "+ex);
-                }
-            }
+            threads.reloadRows(reloadRows, 1);                               // mode 1 - show, 2 - google
+        }else{
+            threads.reloadRows(reloadRows, 2);
         }
     }//GEN-LAST:event_jTable1MouseWheelMoved
 
-// reload new lines in table (drag)
+    /* reload new rows in table (due of drag) */
     private void jTable1ComponentMoved(java.awt.event.ComponentEvent evt) {//GEN-FIRST:event_jTable1ComponentMoved
+        int reloadRows = jScrollPane3.getViewport().getViewPosition().y;
         if(show_button){
-            int position = jScrollPane3.getViewport().getViewPosition().y;
-            int max_position = jTable1.getHeight() - 403; // minus border
-            if(max_position == position){
-                try {
-                    JViewport v = jScrollPane3.getViewport();
-                    //jScrollPane3.getViewport().getViewPosition().y = jScrollPane3.getViewport().getViewPosition().y -10;
-                    jScrollPane3.setViewport(v);
-
-                    String query = "select * from " + jComboBox1.getSelectedItem() 
-                            + " LIMIT "+start_lim+","+Limit+";";
-                    ResultSet rs = stmt.executeQuery(query);
-
-                    while (rs.next()) {                                                 // get data
-                        Vector<String> newRow = new Vector<>();
-                        for(int i = 1; i< count_header+1; i++){
-                            newRow.add(rs.getString(i));                                // create string
-                        }
-                        mod.addRow(newRow);                                             // add string
-                    }
-
-                    // start init for table 
-                    jTable1 .getSelectionModel().setSelectionInterval(0, 0);            // choose fisrt string
-                    old_data = new Vector();
-                    for(int i=0;i<count_header;i++){                                    // save context for first string
-                       old_data.add((String) jTable1.getValueAt(old_string,i)); 
-                    }
-                    start_lim = start_lim + Limit;
-                } catch (SQLException ex) {
-                    JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                    JOptionPane.showMessageDialog(frame,"Error 009: "+ex);
-                }
-            }
+            threads.reloadRows(reloadRows, 1);                               // mode 1 - show, 2 - google
         }else{
-            int position = jScrollPane3.getViewport().getViewPosition().y;
-            int max_position = jTable1.getHeight() - 403; // minus border
-            if(max_position == position){
-                try {
-                     start_lim = start_lim + Limit;
-                    String query = "select *, 'KEYTABLE', 'KEYWORD' from "+jComboBox1.getSelectedItem()+" where concat("
-                                + header_slave_table+") like '%"+jTextField2.getText()+"%' LIMIT "+start_lim+","+Limit+" ";
-                    String header_slave_table = "";
-                    for(int i = 0 ; i<external_keys_vec.size();i++){
-                        header_slave_table = "";
-                        // get header columns
-                        ResultSet header = dbmd.getColumns(null, null, external_keys_vec.get(i+1), null);
-                        while (header.next()) {
-                            header_slave_table = header_slave_table + "T2."+header.getString(4);
-                            if(header.next())    // if not last element, add ","
-                               header_slave_table = header_slave_table+","; 
-                            header.previous();
-                        }
-
-                        // Keyword searching in neighboring tables
-                        query = query +  " UNION select T1.*,'"+external_keys_vec.get(i+1)+"', "
-                                + "concat_ws('=','"+external_keys_vec.get(i+2)+"',T2."+external_keys_vec.get(i+2)+
-                                 ") from "+jComboBox1.getSelectedItem()+ " as T1\n" +
-                                 "inner join " + external_keys_vec.get(i+1)+ " as T2 on concat"
-                                + "(" + header_slave_table + ") like '%"+jTextField2.getText()+"%'\n" +
-                                 "where T1."+external_keys_vec.get(i)+" = T2."+external_keys_vec.get(i+2) +  " LIMIT "+start_lim+","+Limit;
-                        i=i+2;
-                    }  
-                    query = query + ";";
-                    System.out.println("!!!!");
-                    System.out.println(query);
-                    ResultSet slave = stmt.executeQuery(query);
-                    while (slave.next()) {                              // get data
-                        Vector<String> newRow = new Vector<>();
-                        for(int j = 1; j< count_header+3; j++){
-                            newRow.add(slave.getString(j));             // create string
-                        }
-                        mod.addRow(newRow);                             // add string
-                    }
-                } catch (SQLException ex) {
-                    JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-                    JOptionPane.showMessageDialog(frame,"Error 012: "+ex);
-                }
-            }
+            threads.reloadRows(reloadRows, 2);
         }
     }//GEN-LAST:event_jTable1ComponentMoved
 
-// okey Google
+    /* okey Google */
     private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
-        old_string = 0;
+        queryChess.zeroingStartLimit();                                         // startLimit = 0
+        queryChess.setSelectedRow();                                            // convey value of the select row
+        queryChess.setNameTable((String) jComboBox1.getSelectedItem());         // convay selected table
+        queryChess.setGoogleWord(jTextField2.getText());                        // convey keyword
         show_button = false;
         jButton4.setEnabled(false);
         jButton6.setEnabled(false);
         jButton7.setEnabled(false); 
-        jButton8.setEnabled(true); 
-        String query;
-        try {
-            header_slave_table = "";
-            headerVect = new Vector<>();
-             
-            // get the headerlines of the main table
-            ResultSet header_main = dbmd.getColumns(null, null, (String) jComboBox1.getSelectedItem(), null);
-            count_header = 0;
-            while (header_main.next()) {
-                headerVect.add(header_main.getString(4));
-                header_slave_table = header_slave_table +header_main.getString(4);
-                count_header++;
-                if(header_main.next())    // if not last element, add ","
-                   header_slave_table = header_slave_table+","; 
-                header_main.previous();
-            }
-            headerVect.add("KEYTABLE");
-            headerVect.add("KEYWORD");
-            mod = new DefaultTableModel(headerVect, 0);                             // set header
-            jTable1.setModel(mod);                                                  // update table
-            
-            // hide columns of the support
-            jTable1.getColumnModel().getColumn(count_header).setMinWidth(0);
-            jTable1.getColumnModel().getColumn(count_header).setMaxWidth(0);
-            jTable1.getColumnModel().getColumn(count_header).setPreferredWidth(0);
-            jTable1.getColumnModel().getColumn(count_header).setResizable(false);
-            jTable1.getColumnModel().getColumn(count_header+1).setMinWidth(0);
-            jTable1.getColumnModel().getColumn(count_header+1).setMaxWidth(0);
-            jTable1.getColumnModel().getColumn(count_header+1).setPreferredWidth(0);
-            jTable1.getColumnModel().getColumn(count_header+1).setResizable(false);
-
-            // get external_keys
-            query = "SELECT COLUMN_NAME as master_col, REFERENCED_TABLE_NAME as name_slave, "
-                    + "REFERENCED_COLUMN_NAME as slave_col" +
-                    " FROM information_schema.KEY_COLUMN_USAGE\n" +
-                    "WHERE TABLE_SCHEMA ='"+jTextField3.getText()+"' AND TABLE_NAME ='"+
-                    jComboBox1.getSelectedItem() +"' AND\n" +
-                    "CONSTRAINT_NAME <>'PRIMARY' AND REFERENCED_TABLE_NAME is not null;"; 
-            ResultSet external_keys = stmt.executeQuery(query);
-            external_keys_vec = new Vector<>();
-             while (external_keys.next()) {
-                external_keys_vec.add(external_keys.getString(1));   // master_col
-                external_keys_vec.add(external_keys.getString(2));   // name_slave
-                external_keys_vec.add(external_keys.getString(3));   // slave_col
-             }
-             
-             
-            query = "select *, 'KEYTABLE', 'KEYWORD' from "+jComboBox1.getSelectedItem()+" where concat("
-                        + header_slave_table+") like '%"+jTextField2.getText()+"%' LIMIT 0,"+Limit+" ";
-            String header_slave_table = "";
-             for(int i = 0 ; i<external_keys_vec.size();i++){
-                header_slave_table = "";
-                // get header columns
-                ResultSet header = dbmd.getColumns(null, null, external_keys_vec.get(i+1), null);
-                while (header.next()) {
-                    header_slave_table = header_slave_table + "T2."+header.getString(4);
-                    if(header.next())    // if not last element, add ","
-                       header_slave_table = header_slave_table+","; 
-                    header.previous();
-                }
-
-                // Keyword searching in neighboring tables
-                query = query +  " UNION select T1.*,'"+external_keys_vec.get(i+1)+"', "
-                        + "concat_ws('=','"+external_keys_vec.get(i+2)+"',T2."+external_keys_vec.get(i+2)+
-                         ") from "+jComboBox1.getSelectedItem()+ " as T1\n" +
-                         "inner join " + external_keys_vec.get(i+1)+ " as T2 on concat"
-                        + "(" + header_slave_table + ") like '%"+jTextField2.getText()+"%'\n" +
-                         "where T1."+external_keys_vec.get(i)+" = T2."+external_keys_vec.get(i+2) +  " LIMIT 0,"+Limit;
-                i=i+2;
-            }  
-            query = query + ";";
-            System.out.println(query);
-            ResultSet slave = stmt.executeQuery(query);
-            while (slave.next()) {                              // get data
-                Vector<String> newRow = new Vector<>();
-                for(int j = 1; j< count_header+3; j++){
-                    newRow.add(slave.getString(j));             // create string
-                }
-                mod.addRow(newRow);                             // add string
-            }
-
-            // start init for table 
-            jTable1 .getSelectionModel().setSelectionInterval(0, 0);            // choose fisrt string
-            old_data = new Vector();
-            for(int i=0;i<count_header;i++){                                    // save context for first string
-               old_data.add((String) jTable1.getValueAt(old_string,i)); 
-            }
-        } catch (SQLException ex) {
-            JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-            JOptionPane.showMessageDialog(frame,"Error 010: "+ex);
-           // Logger.getLogger(main_interface.class.getName()).log(Level.SEVERE, null, ex);
-        }
+        jButton8.setEnabled(true);
+        threads.okGoogle();                                                     // set request
     }//GEN-LAST:event_jButton3ActionPerformed
 
-// showing line in the dependent table
+    /* showing row in the dependent table */
     private void jButton8ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton8ActionPerformed
-       if(!jTable1.getValueAt(new_string,count_header).equals("KEYTABLE")){
-            JFrame dependent_window = new JFrame("dependent_window");
-            try {
-                // give headerline of the dependent table
-                ResultSet rs4 = dbmd.getColumns(null, null, (String) jTable1.getValueAt(new_string,count_header), null);
-                int d_header = 0;
-                Vector <String> header = new Vector();
-                Vector <String> lines = new Vector();
-                while (rs4.next()) {
-                    header.add(rs4.getString(4));                                // save header
-                    d_header++;                                                  // header count
-                }
-                String query = "select * from " + (String) jTable1.getValueAt(new_string,count_header) 
-                        + " where "+(String) jTable1.getValueAt(new_string,count_header+1)+";";
-                System.out.println(query);
-                ResultSet rs = stmt.executeQuery(query);
-
-                while (rs.next()) {                                                 // get data
-                    for(int i = 1; i< d_header+1; i++){
-                        lines.add(rs.getString(i));                                // create string
-                    }                                           // add string
-                }
-                JTable jTable2 = new JTable(0,0);
-                DefaultTableModel mod2 = new DefaultTableModel(header, 0); // set header
-                jTable2.setModel(mod2);                                                  // update table
-                mod2.addRow(lines);                                             // add string
-                //открываем вторую
-                JScrollPane scrollPane = new JScrollPane(jTable2);
-                dependent_window.getContentPane().add(scrollPane);
-                dependent_window.setPreferredSize(new Dimension(860,150));
-                dependent_window.pack();
-                dependent_window.setLocationRelativeTo(null);
-                dependent_window.setVisible(true);
-                jTable2.setEnabled(false);
-                    // get header columns
-            } catch (SQLException ex) {
-                Logger.getLogger(main_interface.class.getName()).log(Level.SEVERE, null, ex);
-            }
-       }else{
-            JFrame frame = new JFrame("JOptionPane showMessageDialog example");
-            JOptionPane.showMessageDialog(frame,"Keyword in this line");
-       }
-       
+        threads.showSlaveTable();
     }//GEN-LAST:event_jButton8ActionPerformed
 
-public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
+    public static void main(String args[]) {
+            /* Set the Nimbus look and feel */
+            //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
+            /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
+             * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
+             */
+            try {
+                for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
+                    if ("Nimbus".equals(info.getName())) {
+                        javax.swing.UIManager.setLookAndFeel(info.getClassName());
+                        break;
+                    }
                 }
+            } catch (ClassNotFoundException ex) {
+                java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            } catch (InstantiationException ex) {
+                java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            } catch (IllegalAccessException ex) {
+                java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            } catch (javax.swing.UnsupportedLookAndFeelException ex) {
+                java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
             }
-        } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(main_interface.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        //</editor-fold>
+            //</editor-fold>
 
-    /* Create and display the form */
-    java.awt.EventQueue.invokeLater(new Runnable() {
-        public void run() {
-            new main_interface().setVisible(true);
-        }
-    });
-}
+        /* Create and display the form */
+        java.awt.EventQueue.invokeLater(new Runnable() {
+            public void run() {
+                new main_interface().setVisible(true);
+            }
+        });
+    }
+    /* init table and jComboBox in query class*/
+    private void initQuery(){
+        threads.queryChess = queryChess;
+        queryChess.jComboBox1 = jComboBox1;
+        queryChess.jTable1 = jTable1;
+    };
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton jButton1;
